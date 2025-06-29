@@ -19,5 +19,18 @@ model HACKATHON_Users {
   updated_at            DateTime? @default(now()) @db.Timestamp(0)
   google_id             String?   @default("") @db.VarChar(100)
   role                  Int?      @default(0) @db.TinyInt
+
+  HACKATHON_CVs     HACKATHON_CVs[]
 }
 
+model HACKATHON_CVs {
+  id          String    @id @map("_id") @db.VarChar(36)
+  user_id     String   @unique @db.VarChar(36)
+  skills      String?          @db.Text
+  experience  String?          @db.Text
+  projects    String?          @db.Text
+  education   String?          @db.Text
+  created_at  DateTime?        @default(now()) @db.Timestamp(0)
+
+  user        HACKATHON_Users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}

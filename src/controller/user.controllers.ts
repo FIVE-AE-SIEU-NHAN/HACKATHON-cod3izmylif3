@@ -25,6 +25,14 @@ export interface LoginGoogleReqBody {
   id_token: string
 }
 
+export interface RegisterCVReqBody {
+  user_id: string
+  skills: string
+  projects: string
+  experience: string
+  education: string
+}
+
 export const loginController = async (
   req: Request<ParamsDictionary, any, LoginReqBody>,
   res: Response,
@@ -127,5 +135,29 @@ export const loginGoogleController = async (
   throw new ErrorWithStatus({
     status: HTTP_STATUS.UNPROCESSABLE_ENTITY,
     message: 'Google ID is incorrect'
+  })
+}
+
+export const CVController = async (
+  req: Request<ParamsDictionary, any, RegisterCVReqBody>,
+  res: Response,
+  next: NextFunction
+) => {
+  const { user_id, skills, projects, experience, education } = req.body
+
+  // Giả sử bạn có một hàm để lưu CV vào cơ sở dữ liệu
+  const cvData = {
+    user_id,
+    skills,
+    projects,
+    experience,
+    education
+  }
+
+  await usersServices.saveCVToDatabase(cvData)
+
+  res.status(HTTP_STATUS.CREATED).json({
+    message: 'CV created successfully',
+    data: cvData
   })
 }

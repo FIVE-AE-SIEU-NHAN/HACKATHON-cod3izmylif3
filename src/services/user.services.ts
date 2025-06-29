@@ -1,4 +1,6 @@
 import HTTP_STATUS from '~/constant/httpStatus'
+import { RegisterCVReqBody } from '~/controller/user.controllers'
+import CVRepository from '~/repositories/cv.repositories'
 import UserRepository from '~/repositories/user.repositories'
 import { ErrorWithStatus } from '~/utils/error'
 
@@ -20,9 +22,11 @@ export interface RegisterReqBody {
 
 class UsersServices {
   private userRepository: UserRepository
+  private cvRepository: CVRepository
 
   constructor() {
     this.userRepository = new UserRepository()
+    this.cvRepository = new CVRepository()
   }
 
   // 0: admin, 1: candidate, 2: employer
@@ -125,6 +129,10 @@ class UsersServices {
         role: user.role
       }
     }
+  }
+
+  async saveCVToDatabase(data: RegisterCVReqBody) {
+    await this.cvRepository.createCV(data)
   }
 }
 
