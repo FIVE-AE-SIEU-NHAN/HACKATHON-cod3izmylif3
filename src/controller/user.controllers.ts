@@ -33,6 +33,7 @@ export const loginController = async (
   const { email, password } = req.body
 
   const result = await usersServices.login({ email, password })
+
   res.status(HTTP_STATUS.OK).json({
     message: 'Login successful',
     result

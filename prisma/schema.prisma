@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model HACKTHON_Users {
+model HACKATHON_Users {
   id                    String    @id @map("_id") @db.VarChar(36)
   name                  String?   @default("") @db.VarChar(100)
   email                 String    @unique(map: "email") @db.VarChar(255)

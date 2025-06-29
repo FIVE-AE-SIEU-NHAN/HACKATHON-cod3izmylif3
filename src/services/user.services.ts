@@ -106,13 +106,24 @@ class UsersServices {
   }
 
   async login({ email, password }: LoginReqBody) {
-    // dùng email và password để tìm user
     const user = await this.userRepository.checkLogin(email, password)
+
     if (!user) {
       throw new ErrorWithStatus({
         status: HTTP_STATUS.UNPROCESSABLE_ENTITY,
         message: 'Invalid email or password'
       })
+    }
+
+    // Return user data hoặc JWT token
+    return {
+      message: 'Login successful',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
     }
   }
 }

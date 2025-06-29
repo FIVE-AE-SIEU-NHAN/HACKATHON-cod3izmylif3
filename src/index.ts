@@ -3,6 +3,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import userRouter from './routers/user.routers'
 import prismaService from './services/prisma.services'
+import { defaultErorHandler } from './utils/error.middlewares'
 dotenv.config()
 
 const app = express()
@@ -17,11 +18,14 @@ app.use(
 
 prismaService.connect()
 
+app.use(express.json())
 app.get('/', (req, res) => {
   res.send('hello world')
 })
 
 app.use('/user', userRouter)
+
+app.use(defaultErorHandler)
 
 app.listen(port, () => {
   console.log(`Project này đang chạy trên post ${port}`)

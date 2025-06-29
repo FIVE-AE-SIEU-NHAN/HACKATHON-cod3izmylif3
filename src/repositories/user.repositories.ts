@@ -13,7 +13,7 @@ export interface RegisterReqBody {
 }
 
 class UserRepository {
-  private model = prisma.hACKTHON_Users
+  private model = prisma.hACKATHON_Users
 
   async checkEmailExist(email: string) {
     return await this.model.findUnique({ where: { email } })
@@ -34,6 +34,7 @@ class UserRepository {
   }
 
   async checkLogin(email: string, password: string) {
+    console.log(email, password)
     return this.model.findFirst({
       where: {
         email,
