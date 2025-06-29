@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import userRouter from './routers/user.routers'
+import prismaService from './services/prisma.services'
 dotenv.config()
 
 const app = express()
@@ -13,6 +14,8 @@ app.use(
     credentials: true
   })
 )
+
+prismaService.connect()
 
 app.get('/', (req, res) => {
   res.send('hello world')
