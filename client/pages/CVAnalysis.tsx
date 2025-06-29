@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Navigation } from "../components/ui/navigation";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -17,15 +17,19 @@ import {
   Brain,
   Target,
   ArrowRight,
+  ArrowLeft,
   CheckCircle,
   TrendingUp,
   Users,
-  Star,
   Download,
   Sparkles,
+  Clock,
+  ListChecks,
 } from "lucide-react";
 
+// --- Data structure for the UI ---
 interface CVAnalysisResult {
+  name: string;
   skills: string[];
   experience: string;
   suggestedRoles: Array<{
@@ -33,6 +37,10 @@ interface CVAnalysisResult {
     match: number;
     description: string;
     companies: string[];
+    requiredSkills: string[];
+    matchedSkills: string[];
+    requiredExperience: number;
+    userExperience: number;
   }>;
   industries: string[];
   salaryRange: string;
@@ -42,36 +50,106 @@ interface CVAnalysisResult {
   };
 }
 
+// --- Data structures for the API response ---
+interface CVData {
+  name: string;
+  age: string;
+  skills: string[];
+  experience: string[];
+  education: string[];
+}
+
+interface JDMatch {
+  job_title: string;
+  job_overview: string;
+  benefits: string;
+  required_skills: string;
+  matched_skills: string[];
+  cv_years: number;
+  jd_years: number;
+  is_match: boolean;
+}
+
+interface ParsedCVResponse {
+  cv_data: CVData;
+  bit_string: string;
+  matched_jds: JDMatch[];
+}
+
+// --- The Merged Component ---
 export default function CVAnalysis() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState(0);
-  const [analysisResult, setAnalysisResult] = useState<CVAnalysisResult | null>(
-    null,
-  );
+  const [analysisResult, setAnalysisResult] = useState<CVAnalysisResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
+    if (file && (file.type === "application/pdf" || file.name.endsWith(".doc") || file.name.endsWith(".docx"))) {
       setUploadedFile(file);
-      setAnalysisResult(null);
+      setAnalysisResult(null); // Reset previous results
+    } else {
+        alert("Only PDF, DOC, and DOCX files are supported.");
     }
   };
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const file = event.dataTransfer.files[0];
-    if (
-      file &&
-      (file.type === "application/pdf" ||
-        file.name.endsWith(".doc") ||
-        file.name.endsWith(".docx"))
-    ) {
+    if (file && (file.type === "application/pdf" || file.name.endsWith(".doc") || file.name.endsWith(".docx"))) {
       setUploadedFile(file);
       setAnalysisResult(null);
     }
+  };
+
+  /**
+   * Transforms the raw API response into the structure required by the UI.
+   */
+  const transformApiResponse = (apiData: ParsedCVResponse): CVAnalysisResult => {
+    const { cv_data, matched_jds } = apiData;
+
+    const strengths = cv_data.skills || [];
+    const allRequiredSkills = new Set<string>();
+    matched_jds.forEach(jd => {
+      if (jd.required_skills) {
+        jd.required_skills.split(',').forEach(skill => allRequiredSkills.add(skill.trim()));
+      }
+    });
+    
+    const improvements = [...allRequiredSkills].filter(skill => 
+        !strengths.some(s => s.toLowerCase() === skill.toLowerCase())
+    );
+
+    return {
+      name: cv_data.name || "Candidate",
+      skills: strengths,
+      experience: `${matched_jds[0]?.cv_years ?? 'N/A'} years`,
+      suggestedRoles: matched_jds.map(jd => {
+        const required = jd.required_skills ? jd.required_skills.split(',').map(s => s.trim()).filter(Boolean) : [];
+        const matchPercentage = required.length > 0
+          ? Math.round(((jd.matched_skills?.length || 0) / required.length) * 100)
+          : 100;
+        
+        return {
+          title: jd.job_title,
+          match: matchPercentage,
+          description: jd.job_overview || "No description available.",
+          companies: ["Leading Companies"],
+          requiredSkills: required,
+          matchedSkills: jd.matched_skills || [],
+          requiredExperience: jd.jd_years,
+          userExperience: jd.cv_years,
+        };
+      }),
+      industries: ["Technology", "Software Development", "IT Services"],
+      salaryRange: "Not specified by API",
+      strengthsWeaknesses: {
+        strengths: strengths,
+        improvements: improvements.slice(0, 4), // Limit to a few suggestions
+      },
+    };
   };
 
   const analyzeCV = async () => {
@@ -80,83 +158,44 @@ export default function CVAnalysis() {
     setIsAnalyzing(true);
     setAnalysisProgress(0);
 
-    // Simulate AI analysis progress
-    const progressSteps = [
-      { step: 20, text: "Extracting text from CV..." },
-      { step: 40, text: "Analyzing skills and experience..." },
-      { step: 60, text: "Matching with job market data..." },
-      { step: 80, text: "Calculating role compatibility..." },
-      { step: 100, text: "Generating recommendations..." },
-    ];
+    const formData = new FormData();
+    formData.append("pdf_file", uploadedFile);
 
-    for (const { step } of progressSteps) {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      setAnalysisProgress(step);
+    try {
+      setAnalysisProgress(30); // Simulating upload progress
+
+      const response = await fetch("http://127.0.0.1:5000/upload_cv", {
+        method: "POST",
+        body: formData,
+      });
+      
+      setAnalysisProgress(70); // Simulating analysis progress
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.statusText}`);
+      }
+
+      const apiResponse: ParsedCVResponse = await response.json();
+      
+      const formattedResult = transformApiResponse(apiResponse);
+
+      setAnalysisProgress(100);
+      await new Promise(resolve => setTimeout(resolve, 500)); // Short delay to show 100%
+      console.log(formattedResult);
+
+      setAnalysisResult(formattedResult);
+
+    } catch (err) {
+      console.error("Analysis failed:", err);
+      alert("An error occurred during CV analysis. Please try again.");
+      setAnalysisProgress(0);
+    } finally {
+      setIsAnalyzing(false);
     }
-
-    // Mock analysis result
-    const mockResult: CVAnalysisResult = {
-      skills: [
-        "React",
-        "TypeScript",
-        "Node.js",
-        "Python",
-        "SQL",
-        "AWS",
-        "Docker",
-        "Git",
-      ],
-      experience: "Mid-level (3-5 years)",
-      suggestedRoles: [
-        {
-          title: "Frontend Developer",
-          match: 92,
-          description: "Perfect match for your React and TypeScript expertise",
-          companies: ["TechCorp", "InnovateLabs", "DesignStudio"],
-        },
-        {
-          title: "Full Stack Developer",
-          match: 87,
-          description: "Great fit with your frontend and backend experience",
-          companies: ["CloudScale", "DataFlow", "AppWorks"],
-        },
-        {
-          title: "Software Engineer",
-          match: 84,
-          description: "Strong technical skills align with engineering roles",
-          companies: ["AI Insights", "SecureNet", "TechCorp"],
-        },
-      ],
-      industries: ["Technology", "Fintech", "E-commerce", "SaaS"],
-      salaryRange: "$80k - $120k",
-      strengthsWeaknesses: {
-        strengths: [
-          "Strong modern frontend frameworks",
-          "Full-stack capabilities",
-          "Cloud platform experience",
-          "Version control proficiency",
-        ],
-        improvements: [
-          "Consider learning mobile development",
-          "Expand DevOps knowledge",
-          "Add data science skills",
-          "Strengthen system design",
-        ],
-      },
-    };
-
-    setAnalysisResult(mockResult);
-    setIsAnalyzing(false);
   };
 
   const findMatchingJobs = (role: string) => {
-    // Navigate to jobs page with filters
     navigate(`/jobs?role=${encodeURIComponent(role)}`);
-  };
-
-  const findMatchingCompanies = (companies: string[]) => {
-    // Navigate to companies page with filters
-    navigate(`/companies?suggested=${companies.join(",")}`);
   };
 
   return (
@@ -177,19 +216,7 @@ export default function CVAnalysis() {
               Upload your CV and let our AI discover the perfect career matches
               for your skills and experience
             </p>
-            <div className="flex justify-center">
-              <Button
-                variant="outline"
-                className="border-orange-300 text-orange-600 hover:bg-orange-50"
-                asChild
-              >
-                <Link to="/cv-demo">
-                  <Zap className="w-4 h-4 mr-2" />
-                  Watch Live Demo
-                </Link>
-              </Button>
-            </div>
-            <div className="flex flex-wrap justify-center gap-6 text-center">
+            <div className="flex flex-wrap justify-center gap-6 text-center mt-8">
               <div className="flex items-center space-x-2">
                 <Zap className="w-5 h-5 text-orange-600" />
                 <span className="text-gray-700">Instant Analysis</span>
@@ -233,7 +260,6 @@ export default function CVAnalysis() {
                       onChange={handleFileUpload}
                       className="hidden"
                     />
-
                     {uploadedFile ? (
                       <div className="space-y-4">
                         <FileText className="w-16 h-16 text-orange-600 mx-auto" />
@@ -285,7 +311,6 @@ export default function CVAnalysis() {
                       </div>
                     )}
                   </div>
-
                   {isAnalyzing && (
                     <div className="mt-6 space-y-3">
                       <div className="flex justify-between text-sm">
@@ -297,7 +322,6 @@ export default function CVAnalysis() {
                   )}
                 </CardContent>
               </Card>
-
               {/* Features */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card>
@@ -314,7 +338,6 @@ export default function CVAnalysis() {
                     </p>
                   </CardContent>
                 </Card>
-
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center">
@@ -329,7 +352,6 @@ export default function CVAnalysis() {
                     </p>
                   </CardContent>
                 </Card>
-
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center">
@@ -356,16 +378,15 @@ export default function CVAnalysis() {
                     <CheckCircle className="w-8 h-8 text-green-600" />
                     <div className="text-center">
                       <h2 className="text-2xl font-bold text-green-800">
-                        Analysis Complete!
+                        Analysis Complete for {analysisResult.name}!
                       </h2>
                       <p className="text-green-700">
-                        We've analyzed your CV and found great matches
+                        We've analyzed your CV and found great matches.
                       </p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-
               {/* Key Insights */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card>
@@ -387,13 +408,12 @@ export default function CVAnalysis() {
                 <Card>
                   <CardContent className="pt-6 text-center">
                     <div className="text-3xl font-bold text-orange-600 mb-1">
-                      {analysisResult.suggestedRoles[0]?.match}%
+                      {analysisResult.suggestedRoles[0]?.match ?? 0}%
                     </div>
                     <div className="text-gray-600">Best Match</div>
                   </CardContent>
                 </Card>
               </div>
-
               {/* Suggested Roles */}
               <Card>
                 <CardHeader>
@@ -406,40 +426,76 @@ export default function CVAnalysis() {
                   {analysisResult.suggestedRoles.map((role, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                      className="flex flex-col p-4 border rounded-lg hover:bg-gray-50/50"
                     >
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <h3 className="text-lg font-semibold text-gray-900">
-                            {role.title}
-                          </h3>
-                          <Badge className="bg-green-100 text-green-700">
-                            {role.match}% Match
-                          </Badge>
+                      {/* Top section: Role title, match, and action button */}
+                      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3 mb-2">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {role.title}
+                            </h3>
+                            <Badge className="bg-green-100 text-green-700">
+                              {role.match}% Match
+                            </Badge>
+                          </div>
+                          <p className="text-gray-600 text-sm">
+                            {role.description}
+                          </p>
                         </div>
-                        <p className="text-gray-600 text-sm mb-2">
-                          {role.description}
-                        </p>
-                        <div className="flex items-center space-x-2 text-sm text-gray-500">
-                          <Users className="w-4 h-4" />
-                          <span>Available at {role.companies.join(", ")}</span>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => findMatchingJobs(role.title)}
+                          className="self-start md:self-center"
                         >
                           View Jobs
                         </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => findMatchingCompanies(role.companies)}
-                        >
-                          Find Companies
-                          <ArrowRight className="w-4 h-4 ml-1" />
-                        </Button>
+                      </div>
+
+                      {/* Experience and Skills sections */}
+                      <div className="mt-4 pt-4 border-t border-gray-200 space-y-3">
+                        {/* Experience Comparison */}
+                        <div className="flex items-center space-x-2 text-sm text-gray-600">
+                          <Clock className="w-4 h-4 text-gray-500" />
+                          <span>Required: <strong>{role.requiredExperience} yrs</strong></span>
+                          <span>/</span>
+                          <span>Your Exp: <strong>{role.userExperience} yrs</strong></span>
+                          {role.userExperience >= role.requiredExperience ? (
+                              <CheckCircle className="w-4 h-4 text-green-500" />
+                          ) : (
+                              <span className="text-orange-600 font-medium text-xs rounded-full px-2 py-0.5 bg-orange-100" title="Experience gap">GAP</span>
+                          )}
+                        </div>
+                        {/* Skills Match */}
+                        <div>
+                          <h4 className="flex items-center text-sm font-medium text-gray-800 mb-2">
+                            <ListChecks className="w-4 h-4 mr-1.5 text-gray-500" />
+                            Skill Match Analysis
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {role.requiredSkills.map((skill, i) => {
+                              const isMatched = role.matchedSkills.some(ms => ms.toLowerCase() === skill.toLowerCase());
+                              return (
+                                <Badge
+                                  key={i}
+                                  variant={isMatched ? "default" : "secondary"}
+                                  className={`font-normal ${
+                                    isMatched
+                                      ? 'bg-green-100 text-green-800 border border-green-300 hover:bg-green-200'
+                                      : 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  {isMatched && <CheckCircle className="w-3 h-3 mr-1 text-green-600" />}
+                                  {skill}
+                                </Badge>
+                              );
+                            })}
+                            {role.requiredSkills.length === 0 && (
+                                <p className="text-xs text-gray-500">No specific skills listed for this role.</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -476,7 +532,6 @@ export default function CVAnalysis() {
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card>
                   <CardHeader>
                     <CardTitle>Career Insights</CardTitle>
@@ -525,6 +580,7 @@ export default function CVAnalysis() {
                     setUploadedFile(null);
                   }}
                 >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
                   Analyze Another CV
                 </Button>
                 <Button>
