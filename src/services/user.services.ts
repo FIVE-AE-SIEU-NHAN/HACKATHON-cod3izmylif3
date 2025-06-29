@@ -27,10 +27,13 @@ class UsersServices {
 
   // 0: admin, 1: candidate, 2: employer
   async register(payload: RegisterReqBody) {
-    const user = await this.userRepository.createUser({
-      ...payload,
-      role: 1
-    })
+    const role = 1
+    const user = await this.userRepository.createUser(
+      {
+        ...payload
+      },
+      role
+    )
   }
 
   async checkEmailExist(email: string) {

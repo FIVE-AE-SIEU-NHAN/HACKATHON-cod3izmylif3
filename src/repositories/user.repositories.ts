@@ -1,5 +1,5 @@
 import { prisma } from '~/services/client'
-
+import { v4 as ObjectId } from 'uuid'
 export interface RegisterReqBody {
   name: string
   email: string
@@ -9,10 +9,11 @@ export interface RegisterReqBody {
   gender: string
   phone_number: string
   google_id?: string
+  role?: number // 0: admin, 1: candidate, 2: employer
 }
 
 class UserRepository {
-  private model = prisma.users
+  private model = prisma.hACKTHON_Users
 
   async checkEmailExist(email: string) {
     return await this.model.findUnique({ where: { email } })
@@ -41,8 +42,27 @@ class UserRepository {
     })
   }
 
-  async createUser(userData: Users) {
-    return this.model.create({ data: userData })
+  async createUser(
+    userData: {
+      name: string
+      email: string
+      password: string
+      confirm_password: string
+      date_of_birth: string
+      gender: string
+      phone_number: string
+      google_id?: string
+    },
+    role: number
+  ) {
+    const id = ObjectId()
+    return this.model.create({
+      data: {
+        id,
+        ...userData,
+        role
+      }
+    })
   }
 
   async updatePasswordById(user_id: string, password: string) {
