@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom"; // Added Link back for safety
 import { Navigation } from "../components/ui/navigation";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -16,11 +16,9 @@ import {
   Zap,
   Brain,
   Target,
-  ArrowRight,
   ArrowLeft,
   CheckCircle,
   TrendingUp,
-  Users,
   Download,
   Sparkles,
   Clock,
@@ -50,7 +48,7 @@ interface CVAnalysisResult {
   };
 }
 
-// --- Data structures for the API response ---
+// --- Data structures for the Python API response ---
 interface CVData {
   name: string;
   age: string;
@@ -76,7 +74,16 @@ interface ParsedCVResponse {
   matched_jds: JDMatch[];
 }
 
-// --- The Merged Component ---
+// --- Interface for the Node.js backend request ---
+export interface RegisterCVReqBody {
+  user_id: string;
+  skills: string;
+  projects: string;
+  experience: string;
+  education: string;
+}
+
+// --- The Main Component ---
 export default function CVAnalysis() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -89,7 +96,7 @@ export default function CVAnalysis() {
     const file = event.target.files?.[0];
     if (file && (file.type === "application/pdf" || file.name.endsWith(".doc") || file.name.endsWith(".docx"))) {
       setUploadedFile(file);
-      setAnalysisResult(null); // Reset previous results
+      setAnalysisResult(null);
     } else {
         alert("Only PDF, DOC, and DOCX files are supported.");
     }
@@ -104,12 +111,8 @@ export default function CVAnalysis() {
     }
   };
 
-  /**
-   * Transforms the raw API response into the structure required by the UI.
-   */
   const transformApiResponse = (apiData: ParsedCVResponse): CVAnalysisResult => {
     const { cv_data, matched_jds } = apiData;
-
     const strengths = cv_data.skills || [];
     const allRequiredSkills = new Set<string>();
     matched_jds.forEach(jd => {
@@ -117,7 +120,6 @@ export default function CVAnalysis() {
         jd.required_skills.split(',').forEach(skill => allRequiredSkills.add(skill.trim()));
       }
     });
-    
     const improvements = [...allRequiredSkills].filter(skill => 
         !strengths.some(s => s.toLowerCase() === skill.toLowerCase())
     );
@@ -147,9 +149,40 @@ export default function CVAnalysis() {
       salaryRange: "Not specified by API",
       strengthsWeaknesses: {
         strengths: strengths,
-        improvements: improvements.slice(0, 4), // Limit to a few suggestions
+        improvements: improvements.slice(0, 4),
       },
     };
+  };
+
+  const saveCVDataToNodeBackend = async (apiData: ParsedCVResponse) => {
+    const { cv_data } = apiData;
+
+    const payload: RegisterCVReqBody = {
+      user_id: `a9e36d5d-5496-11f0-bfde-0242ac110002`,
+      skills: (cv_data.skills || []).join(', '),
+      experience: (cv_data.experience || []).join('\n'),
+      education: (cv_data.education || []).join('\n'),
+      projects: "Not specified in CV",
+    };
+
+    try {
+      console.log("Sending CV data to Node.js backend:", payload);
+      const response = await fetch("http://localhost:3000/user/cv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Failed to save CV data to Node.js backend:", errorData);
+      } else {
+        const successData = await response.json();
+        console.log("Successfully saved CV data:", successData);
+      }
+    } catch (error) {
+      console.error("Error connecting to Node.js backend:", error);
+    }
   };
 
   const analyzeCV = async () => {
@@ -162,26 +195,23 @@ export default function CVAnalysis() {
     formData.append("pdf_file", uploadedFile);
 
     try {
-      setAnalysisProgress(30); // Simulating upload progress
-
+      setAnalysisProgress(30);
       const response = await fetch("http://127.0.0.1:5000/upload_cv", {
         method: "POST",
         body: formData,
       });
-      
-      setAnalysisProgress(70); // Simulating analysis progress
+      setAnalysisProgress(70);
 
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.statusText}`);
-      }
+      if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
 
       const apiResponse: ParsedCVResponse = await response.json();
       
+      await saveCVDataToNodeBackend(apiResponse);
+
       const formattedResult = transformApiResponse(apiResponse);
 
       setAnalysisProgress(100);
-      await new Promise(resolve => setTimeout(resolve, 500)); // Short delay to show 100%
-      console.log(formattedResult);
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       setAnalysisResult(formattedResult);
 
@@ -371,7 +401,6 @@ export default function CVAnalysis() {
           ) : (
             /* Analysis Results */
             <div className="space-y-8">
-              {/* Success Header */}
               <Card className="bg-gradient-to-r from-green-50 to-green-100 border-green-200">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-center space-x-3">
@@ -387,7 +416,6 @@ export default function CVAnalysis() {
                   </div>
                 </CardContent>
               </Card>
-              {/* Key Insights */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card>
                   <CardContent className="pt-6 text-center">
@@ -414,7 +442,6 @@ export default function CVAnalysis() {
                   </CardContent>
                 </Card>
               </div>
-              {/* Suggested Roles */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center">
@@ -428,7 +455,6 @@ export default function CVAnalysis() {
                       key={index}
                       className="flex flex-col p-4 border rounded-lg hover:bg-gray-50/50"
                     >
-                      {/* Top section: Role title, match, and action button */}
                       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-2">
@@ -452,22 +478,18 @@ export default function CVAnalysis() {
                           View Jobs
                         </Button>
                       </div>
-
-                      {/* Experience and Skills sections */}
                       <div className="mt-4 pt-4 border-t border-gray-200 space-y-3">
-                        {/* Experience Comparison */}
                         <div className="flex items-center space-x-2 text-sm text-gray-600">
                           <Clock className="w-4 h-4 text-gray-500" />
                           <span>Required: <strong>{role.requiredExperience} yrs</strong></span>
                           <span>/</span>
                           <span>Your Exp: <strong>{role.userExperience} yrs</strong></span>
                           {role.userExperience >= role.requiredExperience ? (
-                              <CheckCircle className="w-4 h-4 text-green-500" />
+                              <CheckCircle className="w-4 h-4 text-green-500"  />
                           ) : (
                               <span className="text-orange-600 font-medium text-xs rounded-full px-2 py-0.5 bg-orange-100" title="Experience gap">GAP</span>
                           )}
                         </div>
-                        {/* Skills Match */}
                         <div>
                           <h4 className="flex items-center text-sm font-medium text-gray-800 mb-2">
                             <ListChecks className="w-4 h-4 mr-1.5 text-gray-500" />
@@ -501,77 +523,49 @@ export default function CVAnalysis() {
                   ))}
                 </CardContent>
               </Card>
-
-              {/* Skills & Experience */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Identified Skills</CardTitle>
-                  </CardHeader>
+                  <CardHeader><CardTitle>Identified Skills</CardTitle></CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
                       {analysisResult.skills.map((skill, index) => (
-                        <Badge
-                          key={index}
-                          variant="outline"
-                          className="border-orange-200 text-orange-700"
-                        >
-                          {skill}
-                        </Badge>
+                        <Badge key={index} variant="outline" className="border-orange-200 text-orange-700">{skill}</Badge>
                       ))}
                     </div>
                     <div className="mt-4 p-3 bg-gray-50 rounded">
-                      <p className="text-sm">
-                        <strong>Experience Level:</strong>{" "}
-                        {analysisResult.experience}
-                      </p>
-                      <p className="text-sm">
-                        <strong>Salary Range:</strong>{" "}
-                        {analysisResult.salaryRange}
-                      </p>
+                      <p className="text-sm"><strong>Experience Level:</strong> {analysisResult.experience}</p>
+                      <p className="text-sm"><strong>Salary Range:</strong> {analysisResult.salaryRange}</p>
                     </div>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader>
-                    <CardTitle>Career Insights</CardTitle>
-                  </CardHeader>
+                  <CardHeader><CardTitle>Career Insights</CardTitle></CardHeader>
                   <CardContent className="space-y-4">
                     <div>
-                      <h4 className="font-medium text-green-700 mb-2">
-                        Strengths
-                      </h4>
+                      <h4 className="font-medium text-green-700 mb-2">Strengths</h4>
                       <ul className="text-sm space-y-1">
-                        {analysisResult.strengthsWeaknesses.strengths.map(
-                          (strength, index) => (
+                        {analysisResult.strengthsWeaknesses.strengths.map((strength, index) => (
                             <li key={index} className="flex items-start">
                               <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 mr-2 flex-shrink-0" />
                               {strength}
                             </li>
-                          ),
-                        )}
+                        ))}
                       </ul>
                     </div>
                     <div>
-                      <h4 className="font-medium text-orange-700 mb-2">
-                        Growth Areas
-                      </h4>
+                      <h4 className="font-medium text-orange-700 mb-2">Growth Areas</h4>
                       <ul className="text-sm space-y-1">
-                        {analysisResult.strengthsWeaknesses.improvements.map(
-                          (improvement, index) => (
+                        {analysisResult.strengthsWeaknesses.improvements.map((improvement, index) => (
                             <li key={index} className="flex items-start">
                               <TrendingUp className="w-4 h-4 text-orange-500 mt-0.5 mr-2 flex-shrink-0" />
                               {improvement}
                             </li>
-                          ),
-                        )}
+                        ))}
                       </ul>
                     </div>
                   </CardContent>
                 </Card>
               </div>
-
-              {/* Action Buttons */}
               <div className="flex justify-center space-x-4">
                 <Button
                   variant="outline"
