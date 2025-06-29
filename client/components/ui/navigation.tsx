@@ -28,19 +28,11 @@ export function Navigation({ userRole = "guest", userName }: NavigationProps) {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
-              <svg
-                className="w-5 h-5 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <rect width="20" height="14" x="2" y="6" rx="2" />
-                <path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-              </svg>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center">
+              <img src="/logo.png" className=""/>
             </div>
             <span className="text-xl font-bold bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent">
-              TalentSync
+              CVSync
             </span>
           </Link>
 
