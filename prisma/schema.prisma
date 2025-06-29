@@ -34,3 +34,15 @@ model HACKATHON_CVs {
 
   user        HACKATHON_Users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
+
+
+model HACKATHON_JDs {
+  id                  Int       @id @default(autoincrement()) // AUTO_INCREMENT
+  job_title           String    @db.VarChar(255)
+  job_overview        String?   @db.Text
+  job_experience      String?   @db.Text
+  education_requirements String? @db.Text
+  benefits            String?   @db.Text
+  required_skills     String?   @db.Text
+  created_at          DateTime  @default(now()) @db.Timestamp(0)
+}

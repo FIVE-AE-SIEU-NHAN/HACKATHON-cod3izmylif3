@@ -161,3 +161,16 @@ export const CVController = async (
     data: cvData
   })
 }
+
+export const JDController = async (
+  req: Request<ParamsDictionary, any, RegisterCVReqBody>,
+  res: Response,
+  next: NextFunction
+) => {
+  const jdData = await usersServices.getAllJDs()
+
+  res.status(HTTP_STATUS.CREATED).json({
+    message: 'JD retrieved successfully',
+    data: jdData
+  })
+}
